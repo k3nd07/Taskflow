@@ -1,0 +1,43 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TaskFlow</title>
+<style>
+:root{--bg:#f1f4f8;--card:#fff;--ink:#16202e;--mut:#6b7788;--acc:#2f5bea;--line:#dde3ec}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1520;--card:#18212f;--ink:#e8edf5;--mut:#8a97aa;--line:#273246}}
+*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1000px;margin:0 auto;padding:20px}
+input,select,button{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+button{cursor:pointer;background:var(--acc);color:#fff;border:0}button.g{background:none;color:var(--mut)}
+#auth{max-width:340px;margin:12vh auto;display:grid;gap:10px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:16px}.bar i{display:block;height:100%;background:var(--acc);transition:width .3s}
+.add{display:flex;gap:8px;margin-bottom:16px}.add input{flex:1}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.col{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;min-height:200px}
+.col h3{margin:0 0 10px;font-size:15px}.t{border:1px solid var(--line);border-left:4px solid var(--p);border-radius:8px;padding:9px;margin-bottom:8px;display:flex;justify-content:space-between;gap:6px}
+.t small{color:var(--mut)}.t div:last-child{display:flex;gap:2px}.t button{padding:2px 7px}
+.err{color:#d33;min-height:1em}
+</style></head><body><div class="wrap">
+<div id="auth"><h1>TaskFlow</h1><input id="n" placeholder="Имя"><input id="p" type="password" placeholder="Пароль">
+<button onclick="login('login')">Войти</button><button class="g" onclick="login('register')">Создать аккаунт</button><div class="err" id="e"></div></div>
+<div id="app" hidden><header><h2 id="who"></h2><button class="g" onclick="logout()">Выйти</button></header>
+<div class="bar"><i id="bar"></i></div>
+<div class="add"><input id="title" placeholder="Новая задача" onkeydown="event.key=='Enter'&&add()">
+<select id="pr"><option value="1">Низкий</option><option value="2" selected>Средний</option><option value="3">Высокий</option></select><button onclick="add()">Добавить</button></div>
+<div class="cols" id="cols"></div></div></div>
+<script>
+const $=s=>document.querySelector(s);let token=localStorage.tf||"";
+const COL={todo:"К выполнению",doing:"В работе",done:"Готово"},NEXT={todo:"doing",doing:"done",done:"todo"},COLOR=["","#4caf7d","#e8a93a","#e5484d"];
+async function api(p,m="GET",b){const r=await fetch("/api/"+p,{method:m,headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:b?JSON.stringify(b):undefined});
+ const d=await r.json();if(r.status==401&&token)logout();if(!r.ok)throw d.error||"Ошибка";return d}
+async function login(k){try{const d=await api(k,"POST",{name:$("#n").value,pw:$("#p").value});token=d.token;localStorage.tf=token;localStorage.name=d.name;start()}catch(e){$("#e").textContent=e}}
+function logout(){localStorage.removeItem("tf");token="";$("#auth").hidden=false;$("#app").hidden=true}
+async function add(){const t=$("#title").value.trim();if(!t)return;await api("tasks","POST",{title:t,priority:+$("#pr").value});$("#title").value="";load()}
+async function move(id,s){await api("tasks/"+id,"PUT",{status:s});load()}
+async function del(id){await api("tasks/"+id,"DELETE");load()}
+async function load(){const[ts,st]=await Promise.all([api("tasks"),api("stats")]);$("#bar").style.width=st.percent_done+"%";
+ $("#cols").innerHTML=Object.keys(COL).map(k=>`<div class="col"><h3>${COL[k]} (${st[k]})</h3>${ts.filter(t=>t.status==k).map(t=>
+ `<div class="t" style="--p:${COLOR[t.priority]}"><div>${esc(t.title)}<br><small>${t.created.slice(0,10)}</small></div><div><button onclick="move(${t.id},'${NEXT[k]}')">→</button><button class="g" onclick="del(${t.id})">✕</button></div></div>`).join("")}</div>`).join("")}
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function start(){$("#auth").hidden=true;$("#app").hidden=false;$("#who").textContent="Задачи: "+localStorage.name;load()}
+if(token)start();
+</script></body></html>
